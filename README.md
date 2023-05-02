@@ -13,3 +13,13 @@ Before building, ensure that:
 
 Run `dotnet build` to build.
 
+---
+
+## Current Tweaks
+
+* Sharpshooter
+    * Bounces - How many times the Sharpshooter Fire2 bounces.
+* Better Autoaim - Makes coins the highest priority target for the auto aim.
+    * Coin Only - Make the auto aim only target coins.
+    * Grenades Only - Make the auto aim only target grenades(Core and Rocket).
+        * The "Only" options can be used together.
