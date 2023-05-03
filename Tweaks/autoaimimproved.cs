@@ -22,6 +22,11 @@ namespace Extension.Tweaks
         private static bool coreEjectOnlyMode;
 		
 		// Setting Working Variables
+		private static uint targetBitFlag = 0b000;
+			// 0b0001 = coin
+			// 0b0010 = core
+			// 0b0011 = coin & core
+		private static bool isVisible = false;
 		
         // Runtime Determined
 
@@ -46,11 +51,29 @@ namespace Extension.Tweaks
             };
         }
 
+        public static void updateBitFlags() {
+			if (coinOnlyMode) {
+				targetBitFlag = targetBitFlag | 0b0001;
+			} else {
+				targetBitFlag = targetBitFlag & 0b1110;
+			}
+
+			if (coreEjectOnlyMode) {
+				targetBitFlag = targetBitFlag | 0b0010;
+			} else {
+				targetBitFlag = targetBitFlag & 0b1101;
+			}
+
+        }
+
         public override void OnTweakEnabled()
         {
             base.OnTweakEnabled();
             coinOnlyMode = Subsettings["coin_only"].GetValue<bool>();
             coreEjectOnlyMode = Subsettings["core_only"].GetValue<bool>();
+
+			updateBitFlags();
+
             harmony.PatchAll(typeof(AutoAimPatches));
         }
 
@@ -64,6 +87,8 @@ namespace Extension.Tweaks
         public override void OnSubsettingUpdate() {
             coinOnlyMode = Subsettings["coin_only"].GetValue<bool>();
             coreEjectOnlyMode = Subsettings["core_only"].GetValue<bool>();
+            updateBitFlags();
+            Console.WriteLine("targetBitFlag: " + Convert.ToString(targetBitFlag, 2));
             Console.WriteLine("Coin Only Mode: "+ coinOnlyMode.ToString());
             Console.WriteLine("Grenade Only Mode: "+ coreEjectOnlyMode.ToString());
         }
@@ -73,20 +98,67 @@ namespace Extension.Tweaks
 
 			[HarmonyPatch(typeof(CameraFrustumTargeter), "Update"), HarmonyPrefix]
 			public static bool PreUpdate(CameraFrustumTargeter __instance){
-				var setter = __instance.GetType().GetMethod("set_CurrentTarget", BindingFlags.NonPublic | BindingFlags.Instance);
+				var setterCT = __instance.GetType().GetMethod("set_CurrentTarget", BindingFlags.NonPublic | BindingFlags.Instance);
+				var setterAA = __instance.GetType().GetMethod("set_IsAutoAimed", BindingFlags.NonPublic | BindingFlags.Instance);
 
-				if ((coreEjectOnlyMode == true || coinOnlyMode == true) && __instance.CurrentTarget != null) {
-					string tag = __instance.CurrentTarget.tag.ToString();
-					Coin actCoin;
-					Grenade actGrenade;
-					if (!( __instance.CurrentTarget.TryGetComponent<Coin>(out actCoin) || 
-								__instance.CurrentTarget.TryGetComponent<Grenade>(out actGrenade) )) {
-						setter.Invoke(__instance, new object[]{null});
-						Traverse.Create(__instance).Field("IsAutoAimed").SetValue(false);
+				// Coin | Core 
+				//    0 | 0    Do Nothing 
+				//    0 | 1    Stop Aiming at Enemy / coin
+				//    1 | 0    Stop Aiming at Enemy / grenade
+				//    1 | 1    Stop Aiming at Enemy
+				if (__instance.CurrentTarget != null) {
+					Coin actCoin = null;
+					Grenade actGrenade = null;
+
+					bool gotCoin = __instance.CurrentTarget.TryGetComponent<Coin>(out actCoin);
+					bool gotNade = __instance.CurrentTarget.TryGetComponent<Grenade>(out actGrenade);
+
+					//If Coin is hanging stop looking at it
+					// RemoveOnTime tmpChk;
+					// if (gotCoin && __instance.CurrentTarget.TryGetComponent<RemoveOnTime>(out tmpChk) ) {
+					// 	setter.Invoke(__instance, new object[]{null});
+					// 	Traverse.Create(__instance).Field("IsAutoAimed").SetValue(false);
+					// 	return false;
+					// }
+					
+					// Remove Non-Coin
+					if (targetBitFlag == 0b0001 && !gotCoin) {
+						// Console.WriteLine("[PREFIX ] Removing Non-Coin");
+						setterCT.Invoke(__instance, new object[]{null});
+						setterAA.Invoke(__instance, new object[]{false});
 						return false;
-					} else {
+					}
+
+					// Remove Non-Nade
+					if (targetBitFlag == 0b0010 && !gotNade) {
+						// Console.WriteLine("[PREFIX ] Removing Non-Nade");
+						setterCT.Invoke(__instance, new object[]{null});
+						setterAA.Invoke(__instance, new object[]{false});
+						return false;
+					}
+
+					// Remove Non-Coin and Non-Nade
+					if ( (targetBitFlag != 0b0000) && !gotNade && !gotCoin) {
+						// Console.WriteLine("[PREFIX ] Removing Non-Coin and Non-Nade");
+						setterCT.Invoke(__instance, new object[]{null});
+						setterAA.Invoke(__instance, new object[]{false});
+						return false;
+					}
+				
+					// IF coin, and coin velocity == 0; Cull it
+					if ( (gotCoin || gotNade) && __instance.CurrentTarget != null) {
+						Rigidbody rb = __instance.CurrentTarget.GetComponent<Rigidbody>();
+						bool isStill = rb.velocity.Equals(Vector3.zero);
+						if (isStill) {
+							setterCT.Invoke(__instance, new object[]{null});
+							setterAA.Invoke(__instance, new object[]{false});
+						}
+
 						return true;
 					}
+
+
+					return false;
 				} else {
 					return true;
 				}
@@ -96,17 +168,8 @@ namespace Extension.Tweaks
         	// (Only if there are coins of course.)
             [HarmonyPatch(typeof(CameraFrustumTargeter), "Update"), HarmonyPostfix]
             public static void PostUpdate(CameraFrustumTargeter __instance) {
-				var setter = __instance.GetType().GetMethod("set_CurrentTarget", BindingFlags.NonPublic | BindingFlags.Instance);
-
-				
-				// Remove non-coin targets if coinOnly
-				if ((coinOnlyMode || coreEjectOnlyMode) && __instance.CurrentTarget != null) {
-					string currTag = __instance.CurrentTarget.tag.ToString();
-					if (!(currTag.Equals("Coin") || currTag.Equals("Grenade")) ) {
-						setter.Invoke(__instance, new object[]{null});
-						Traverse.Create(__instance).Field("IsAutoAimed").SetValue(false);
-					}
-				}
+				var setterCT = __instance.GetType().GetMethod("set_CurrentTarget", BindingFlags.NonPublic | BindingFlags.Instance);
+				var setterAA = __instance.GetType().GetMethod("set_IsAutoAimed", BindingFlags.NonPublic | BindingFlags.Instance);
 
 				// Create working variables
 				float distToXHair = float.PositiveInfinity;
@@ -119,6 +182,74 @@ namespace Extension.Tweaks
             	float maxHorAim = Traverse.Create(__instance).Field("maxHorAim").GetValue<float>();
 				LayerMask occolusionMask = Traverse.Create(__instance).Field("occolusionMask").GetValue<LayerMask>();
 				LayerMask mask = Traverse.Create(__instance).Field("mask").GetValue<LayerMask>();
+				
+				// Remove non-coin/core targets if coinOnly / coreOnly
+				if (__instance.CurrentTarget != null) {
+					Coin actCoin = null;
+					Grenade actGrenade = null;
+
+
+					bool gotCoin = __instance.CurrentTarget.TryGetComponent<Coin>(out actCoin);
+					bool gotNade = __instance.CurrentTarget.TryGetComponent<Grenade>(out actGrenade);
+
+					// Remove Non-Coin
+					if (targetBitFlag == 0b0001 && !gotCoin) {
+						// Console.WriteLine("[POSTFIX] Removing Non-Coin");
+						setterCT.Invoke(__instance, new object[]{null});
+						setterAA.Invoke(__instance, new object[]{false});
+					} 
+
+					// Remove Non-Nade
+					if (targetBitFlag == 0b0010 && !gotNade) {
+						// Console.WriteLine("[POSTFIX] Removing Non-Coin and Non-Nade");
+						setterCT.Invoke(__instance, new object[]{null});
+						setterAA.Invoke(__instance, new object[]{false});
+					} 
+
+					// Remove Non-Coin and Non-Nade
+					if (targetBitFlag != 0b0000 && !gotCoin && !gotNade) {
+						// Console.WriteLine("[POSTFIX] Removing Non-Coin and Non-Nade");
+						setterCT.Invoke(__instance, new object[]{null});
+						setterAA.Invoke(__instance, new object[]{false});
+					}
+
+					// IF coin, and coin velocity == 0; Cull it
+					if (__instance.CurrentTarget != null) {
+						if (gotCoin || gotNade) {
+							Rigidbody rb = __instance.CurrentTarget.GetComponent<Rigidbody>();
+							bool isStill = rb.velocity.Equals(Vector3.zero);
+							if (isStill) {
+								setterCT.Invoke(__instance, new object[]{null});
+								setterAA.Invoke(__instance, new object[]{false});
+							}
+						} else {
+							Vector3 vec2d = camera.WorldToViewportPoint(__instance.CurrentTarget.bounds.center);
+							if (!(
+									vec2d.x <= 0.5f + maxHorAim / 2f &&
+									vec2d.x >= 0.5f - maxHorAim / 2f &&
+									vec2d.y <= 0.5f + maxHorAim / 2f &&
+									vec2d.y >= 0.5f - maxHorAim / 2f &&
+									vec2d.z >= 0f
+								)) {
+								isVisible = false;
+							} else {
+								isVisible = true;
+							}
+							if (!isVisible) {
+								setterCT.Invoke(__instance, new object[]{null});
+								setterAA.Invoke(__instance, new object[]{false});
+							}
+
+						}
+					}
+
+
+					// Stop locking onto coins that are inactive
+					// Console.WriteLine("CurrentTarget: " + __instance.CurrentTarget.ToString());
+				}
+				// SKIP_CHECK:;
+
+
 
 				// Recalc visible targets
 				int numTargets = Physics.OverlapBoxNonAlloc(bounds.center, bounds.extents, targets, __instance.transform.rotation, mask.value);
@@ -128,9 +259,34 @@ namespace Extension.Tweaks
 				// Collider.tag only applies to phys objs
 				List<Collider> coinsAndGrenadeColliders = new List<Collider>();
 				for (int i = 0; i < numTargets; i++) {
-					Coin activeCoin;
-					Grenade activeGrenade;
-					if ( targets[i].TryGetComponent<Coin>(out activeCoin)  || targets[i].TryGetComponent<Grenade>(out activeGrenade)) {
+					Coin activeCoin = null;
+					Grenade activeGrenade = null;
+
+					bool gotCoin = targets[i].TryGetComponent<Coin>(out activeCoin) ;
+					bool gotNade = targets[i].TryGetComponent<Grenade>(out activeGrenade);
+
+					// RemoveOnTime tmpChk;
+					// if (__instance.CurrentTarget.TryGetComponent<RemoveOnTime>(out tmpChk) ) {
+					// 	continue;
+					// }
+
+					// IF coins only and gotCoin
+					if (targetBitFlag == 0b0001 && gotCoin) {
+						coinsAndGrenadeColliders.Add(targets[i]);
+					}
+
+					// IF core only and gotCore
+					if (targetBitFlag == 0b0010 && gotNade) {
+						coinsAndGrenadeColliders.Add(targets[i]);
+					}
+
+					// IF coin and core only and gotCore or gotCoin
+					if (targetBitFlag == 0b0011 && ( gotCoin || gotNade )){
+						coinsAndGrenadeColliders.Add(targets[i]);
+					}
+
+					// IF all and gotCoin or gotCore 
+					if (targetBitFlag == 0b0000 && (gotCoin || gotNade) ) {
 						coinsAndGrenadeColliders.Add(targets[i]);
 					}
 				}
@@ -179,8 +335,8 @@ namespace Extension.Tweaks
 				// IF coin exist proceed as normal
 				// ELSE, IF coinonlymode, do not aim.
 				if (endCollider != null) {
-					setter.Invoke(__instance, new object[]{endCollider});
-					Traverse.Create(__instance).Field("IsAutoAimed").SetValue(true);
+					setterCT.Invoke(__instance, new object[]{endCollider});
+					setterAA.Invoke(__instance, new object[]{true});
 				}
             }
         }
