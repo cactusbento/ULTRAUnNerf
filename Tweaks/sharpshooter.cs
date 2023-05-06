@@ -11,7 +11,7 @@ using UnityEngine;
 namespace Extension.Tweaks
 {
     // All the metadata for the tweak. Needed for the mod to find the tweak.
-    [TweakMetadata("SharpShooter", $"{Extension.GUID}.sharpshooter", "This modifies the sharpshooter.", $"{Extension.GUID}.ext_page", 0)]
+    [TweakMetadata("SharpShooter", $"{Extension.GUID}.sharpshooter", "This modifies the sharpshooter.", $"{Extension.GUID}.ext_page", 0, null, false)]
     public class SharpShooter : Tweak // All tweaks must inherit `Tweak`.
     {
         private Harmony harmony = new($"{Extension.GUID}.sharpshooter");
@@ -44,7 +44,7 @@ namespace Extension.Tweaks
             
             MaxRicochet = Subsettings["max_ricochets"].GetValue<int>();
             RicochetDivider = 100f/ MaxRicochet;
-
+			
             harmony.PatchAll(typeof(SharpShooterPatches));
         }
 

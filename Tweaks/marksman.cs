@@ -1,0 +1,87 @@
+﻿using HarmonyLib;
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Reflection.Emit;
+using System.Text;
+using UltraTweaker.Handlers;
+using UltraTweaker.Tweaks;
+using UnityEngine;
+
+namespace Extension.Tweaks
+{
+    // All the metadata for the tweak. Needed for the mod to find the tweak.
+    [TweakMetadata("Alt Marksman", $"{Extension.GUID}.Marksman", "This modifies the Alt Marksman.", $"{Extension.GUID}.ext_page", 0, null, false)]
+    public class Marksman : Tweak // All tweaks must inherit `Tweak`.
+    {
+        private Harmony harmony = new($"{Extension.GUID}.Marksman");
+        // Consts
+
+        // Setting Variables
+        protected static int shotAddCount;
+		
+		// Tweak Working Variables
+		protected static GameObject sourceWeapon = null;
+		protected static int sourceWeaponVariation;
+		protected static bool sourceWeaponAlt;
+		
+        // Runtime Determined
+
+        // All subsettings must be set in the constructor.
+        public Marksman()
+        {
+            Subsettings = new()
+            {
+                { "am_hit_times", 
+                	new IntSubsetting(this, new Metadata("Hit Increase", "am_hit_times", "How many hits each coin adds."),
+                    new SliderIntSubsettingElement("{0}"), 0, 10, 0) }
+            };
+        }
+
+        public override void OnTweakEnabled()
+        {
+            base.OnTweakEnabled();
+            
+            shotAddCount = Subsettings["am_hit_times"].GetValue<int>();
+
+            harmony.PatchAll(typeof(MarksmanPatches));
+        }
+
+        public override void OnTweakDisabled()
+        {
+            base.OnTweakDisabled();
+            harmony.UnpatchSelf();
+        }
+
+        // This will update the value when it is changed.
+        public override void OnSubsettingUpdate()
+        {
+            shotAddCount = Subsettings["am_hit_times"].GetValue<int>();
+        }
+
+        public class MarksmanPatches
+        {
+        	// Check if the shot comes from ALT revolver 
+        	// Records the data for later use
+            [HarmonyPatch(typeof(Revolver), "Shoot"), HarmonyPrefix]
+            private static void PreShoot(Revolver __instance) {
+				sourceWeapon = __instance.gc.currentWeapon;
+				sourceWeaponVariation = __instance.gunVariation;
+				sourceWeaponAlt = __instance.altVersion;
+            }
+
+            // When a coin is hit with the sourceWeapon (Alt Marksman),
+            // create another beam. (This will create new beams exponentially)
+            [HarmonyPatch(typeof(Coin), nameof(Coin.DelayedReflectRevolver)), HarmonyPostfix]
+            private static void PostDelayedReflectRevolver(Coin __instance) {
+				MonoBehaviour baseInstance = __instance as MonoBehaviour;
+
+				if(__instance.sourceWeapon == sourceWeapon && sourceWeaponVariation == 1 && sourceWeaponAlt) {
+					for (int i = 0; i < shotAddCount; i++) {
+						baseInstance.Invoke("ReflectRevolver", 0.1f);
+					}
+				}
+            }
+        }
+    }
+}

@@ -19,6 +19,8 @@ Run `dotnet build` to build.
 
 * Sharpshooter
     * Bounces - How many times the Sharpshooter Fire2 bounces.
+* Alt Marksman
+    * Hit Increase - Adds an additional X amount of hits for each coin hit (I think).
 * Better Autoaim - Makes coins and grenades the highest priority target for the auto aim.
     * Coin Only - Make the auto aim only target coins.
     * Grenades Only - Make the auto aim only target grenades(Core and Rocket).
