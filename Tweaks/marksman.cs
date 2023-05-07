@@ -40,7 +40,7 @@ namespace Extension.Tweaks
             {
                 { "am_hit_times", 
                 	new IntSubsetting(this, new Metadata("Hit Increase", "am_hit_times", "How many hits each coin adds."),
-                    new SliderIntSubsettingElement("{0}"), 0, 6, 0) }
+                    new SliderIntSubsettingElement("{0}"), 0, 5, 0) }
             };
         }
 
