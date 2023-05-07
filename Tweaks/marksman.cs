@@ -7,6 +7,7 @@ using System.Text;
 using UltraTweaker.Handlers;
 using UltraTweaker.Tweaks;
 using UnityEngine;
+using BepInEx.Logging;
 
 namespace Extension.Tweaks
 {
@@ -15,6 +16,7 @@ namespace Extension.Tweaks
     public class Marksman : Tweak // All tweaks must inherit `Tweak`.
     {
         private Harmony harmony = new($"{Extension.GUID}.Marksman");
+        private static ManualLogSource L;
         // Consts
 
         // Setting Variables
@@ -24,23 +26,28 @@ namespace Extension.Tweaks
 		protected static GameObject sourceWeapon = null;
 		protected static int sourceWeaponVariation;
 		protected static bool sourceWeaponAlt;
+
+		protected static int coinsHit;
 		
         // Runtime Determined
 
         // All subsettings must be set in the constructor.
         public Marksman()
         {
+        	L = new ManualLogSource("UKUnNerf");
+
             Subsettings = new()
             {
                 { "am_hit_times", 
                 	new IntSubsetting(this, new Metadata("Hit Increase", "am_hit_times", "How many hits each coin adds."),
-                    new SliderIntSubsettingElement("{0}"), 0, 10, 0) }
+                    new SliderIntSubsettingElement("{0}"), 0, 6, 0) }
             };
         }
 
         public override void OnTweakEnabled()
         {
             base.OnTweakEnabled();
+            BepInEx.Logging.Logger.Sources.Add(L);
             
             shotAddCount = Subsettings["am_hit_times"].GetValue<int>();
 
@@ -50,6 +57,8 @@ namespace Extension.Tweaks
         public override void OnTweakDisabled()
         {
             base.OnTweakDisabled();
+            BepInEx.Logging.Logger.Sources.Remove(L);
+
             harmony.UnpatchSelf();
         }
 
@@ -68,6 +77,10 @@ namespace Extension.Tweaks
 				sourceWeapon = __instance.gc.currentWeapon;
 				sourceWeaponVariation = __instance.gunVariation;
 				sourceWeaponAlt = __instance.altVersion;
+
+				// Gun -> coin 0 
+				coinsHit = 0;
+				// L.LogInfo("Revolver Fire: " + coinsHit.ToString());
             }
 
             // When a coin is hit with the sourceWeapon (Alt Marksman),
@@ -75,11 +88,19 @@ namespace Extension.Tweaks
             [HarmonyPatch(typeof(Coin), nameof(Coin.DelayedReflectRevolver)), HarmonyPostfix]
             private static void PostDelayedReflectRevolver(Coin __instance) {
 				MonoBehaviour baseInstance = __instance as MonoBehaviour;
+				coinsHit++;
+				// L.LogInfo("Coin Hit: " + coinsHit.ToString());
 
 				if(__instance.sourceWeapon == sourceWeapon && sourceWeaponVariation == 1 && sourceWeaponAlt) {
-					for (int i = 0; i < shotAddCount; i++) {
+					// int hitsAdded = 0;
+					int hitsToAdd = (int)Math.Pow(coinsHit, shotAddCount) / 2;
+
+					for (int i = 0; i < hitsToAdd; i++) {
+						// hitsAdded = hitsAdded + 1;
 						baseInstance.Invoke("ReflectRevolver", 0.1f);
 					}
+
+					// L.LogInfo("Hits Added: " + hitsAdded.ToString());
 				}
             }
         }
