@@ -22,6 +22,8 @@ Run `dotnet build` to build.
 * Alt Marksman
     * Hit Increase - The amount of additional hits produced (Revolver + coins) = (coinsHit^["Hit Increase"]) / 2. 
         * I recommend setting it to 2, but I won't stop you from setting it to 6 (Last coin will add an additional 2048 hits).
+* Damage Dialogues
+    * Gives a breakdown of your damage dealt. (Does not account for crits)
 * Better Autoaim - Makes coins and grenades the highest priority target for the auto aim.
     * Coin Only - Make the auto aim only target coins.
     * Grenades Only - Make the auto aim only target grenades(Core and Rocket).
