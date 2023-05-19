@@ -42,7 +42,10 @@ namespace Extension.Tweaks
         // Runtime Determined:
 		protected static float TotalDamage = 0f;
 
-        public damageTracker() {}
+        public damageTracker() {
+        	L = new ManualLogSource("UKUnNerf");
+        	BepInEx.Logging.Logger.Sources.Add(L);
+        }
 
 		// Executes when combo lifetime is over.
         private void OnTimedEvent(System.Object source, ElapsedEventArgs e) {
@@ -67,8 +70,6 @@ namespace Extension.Tweaks
 
         public override void OnTweakEnabled() {
             base.OnTweakEnabled();
-        	L = new ManualLogSource("UKUnNerf");
-        	BepInEx.Logging.Logger.Sources.Add(L);
 
         	// Setup Timer 
         	dictTimer = new Timer(LIFETIME * 1000);
