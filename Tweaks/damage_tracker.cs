@@ -13,7 +13,7 @@ using BepInEx.Logging;
 namespace Extension.Tweaks
 {
     // All the metadata for the tweak. Needed for the mod to find the tweak.
-    [TweakMetadata("damageTracker", $"{Extension.GUID}.damageTracker", "Track the damage you deal.", $"{Extension.GUID}.ext_page", 0, null)]
+    [TweakMetadata("damageTracker", $"{Extension.GUID}.damageTracker", "Track the damage you deal.", $"{Extension.GUID}.ext_page", 2, null)]
     public class damageTracker : Tweak // All tweaks must inherit `Tweak`.
     {
         private Harmony harmony = new($"{Extension.GUID}.damageTracker");
